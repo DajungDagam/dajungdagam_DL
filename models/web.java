@@ -1,42 +1,37 @@
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-web</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-jpa</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.squareup.retrofit2</groupId>
-    <artifactId>retrofit</artifactId>
-    <version>2.9.0</version>
-</dependency>
-<dependency>
-    <groupId>com.squareup.okhttp3</groupId>
-    <artifactId>okhttp</artifactId>
-    <version>4.9.0</version>
-</dependency>
+import org.tensorflow.Graph;
+import org.tensorflow.Session;
+import org.tensorflow.Tensor;
+import org.tensorflow.Tensors;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
-import java.util.HashMap;
-import java.util.Map;
+public class TensorFlowService {
 
-@RestController
-public class RecommendationController {
+    private Graph graph;
+    private Session session;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final String tensorflowServingUrl = "http://localhost:8501/v1/models/groupbuy_recommendation:predict";
+    public TensorFlowService() {
+        // 모델 파일을 로드하고 그래프를 생성합니다.
+        try (InputStream is = getClass().getResourceAsStream("/model.pb")) {
+            graph = new Graph();
+            byte[] graphBytes = IOUtils.toByteArray(is);
+            graph.importGraphDef(graphBytes);
+            session = new Session(graph);
+        } catch (IOException e) {
+            throw new RuntimeException("모델 파일을 로드할 수 없습니다.", e);
+        }
+    }
 
-    @GetMapping("/recommend/{userId}")
-    public String getRecommendations(@PathVariable int userId) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("instances", new int[][]{{userId}});
-
-        String response = restTemplate.postForObject(tensorflowServingUrl, data, String.class);
-
-        return response;
+    public float[] predict(float[] inputData) {
+        // 입력 데이터를 사용하여 모델을 실행하고 결과를 반환합니다.
+        try (Tensor<Float> input = Tensors.create(inputData)) {
+            Tensor<Float> result = session.runner()
+                                         .feed("input_tensor_name", input)
+                                         .fetch("output_tensor_name")
+                                         .run()
+                                         .get(0)
+                                         .expect(Float.class);
+            float[] output = new float[result.numElements()];
+            result.copyTo(output);
+            return output;
+        }
     }
 }
