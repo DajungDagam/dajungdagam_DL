@@ -61,4 +61,4 @@ print(recommended_titles)
 
 model.save('recommendation_model_tf.h5') 
 
-# new_model = tf.keras.models.load_model('recommendation_model_tf.h5')
+tf.saved_model.save(model, 'path_to_save_model')
